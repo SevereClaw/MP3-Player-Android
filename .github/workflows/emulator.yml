@@ -33,29 +33,25 @@ jobs:
           script: |
             adb install -r app/build/outputs/apk/release/app-release.apk
             adb shell pm grant com.severeclaw.mp3player android.permission.POST_NOTIFICATIONS || true
-            adb shell am start -n com.severeclaw.mp3player/.MainActivity
-            sleep 8
-            adb exec-out screencap -p > shot1.png
-            adb shell input keyevent KEYCODE_BACK; sleep 1
-            adb shell am start -n com.severeclaw.mp3player/.MainActivity; sleep 3
-            adb exec-out screencap -p > shot2.png
-            adb shell am force-stop com.severeclaw.mp3player
+            adb shell pm grant com.severeclaw.mp3player android.permission.READ_MEDIA_AUDIO || true
             adb shell am start -n com.severeclaw.mp3player/.MainActivity --ez test_tone true
-            sleep 10
-            adb shell input tap 760 472
-            sleep 4
+            sleep 18
+            adb exec-out screencap -p > shot1.png
+            adb shell input tap 324 2250
+            sleep 3
+            adb exec-out screencap -p > shot2.png
+            adb shell input tap 540 2250
+            sleep 3
             adb exec-out screencap -p > shot3.png
             adb shell dumpsys media_session | grep -A12 "package=com.severeclaw" | grep -E "package=|state=PlaybackState" | head -4
-            adb shell cmd statusbar expand-notifications; sleep 2
-            adb exec-out screencap -p > shot4.png
-            adb logcat -d | grep -E "AndroidRuntime|FATAL|mp3player" | tail -40 || true
+            adb logcat -d | grep -E "AndroidRuntime|FATAL" | tail -30 || true
       - name: Print screenshots
         run: |
           pip install --quiet pillow
           python3 - <<'PY'
           import base64, io
           from PIL import Image
-          for name in ("shot2.png", "shot3.png", "shot4.png"):
+          for name in ("shot1.png", "shot2.png", "shot3.png"):
               im = Image.open(name).convert("RGB")
               im = im.resize((im.width // 2, im.height // 2))
               buf = io.BytesIO(); im.save(buf, "JPEG", quality=80)
