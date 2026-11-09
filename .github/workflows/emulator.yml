@@ -18,23 +18,6 @@ jobs:
         with: { gradle-version: "8.11.1" }
       - name: Build APK
         run: gradle --no-daemon assembleRelease
-      - name: Test music (tone + .lrc)
-        run: |
-          python3 - <<'PY'
-          import math, struct, wave, os
-          os.makedirs("testmusic", exist_ok=True)
-          sr = 44100
-          with wave.open("testmusic/01 - Тест - Синус.wav", "wb") as w:
-              w.setnchannels(2); w.setsampwidth(2); w.setframerate(sr)
-              frames = bytearray()
-              for i in range(sr * 40):
-                  v = int(8000 * math.sin(2 * math.pi * 440 * i / sr))
-                  frames += struct.pack("<hh", v, v)
-              w.writeframes(bytes(frames))
-          open("testmusic/01 - Тест - Синус.lrc", "w", encoding="utf-8").write(
-              "[00:00.50]Первая строчка песни\n[00:03.00]Вторая строчка, которая подлиннее остальных\n[00:30.00]Третья\n")
-          PY
-          ls -la testmusic
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -57,14 +40,12 @@ jobs:
             adb shell am start -n com.severeclaw.mp3player/.MainActivity; sleep 3
             adb exec-out screencap -p > shot2.png
             adb shell am force-stop com.severeclaw.mp3player
-            adb shell mkdir -p /sdcard/Android/data/com.severeclaw.mp3player/files/Music
-            adb push testmusic/. /sdcard/Android/data/com.severeclaw.mp3player/files/Music/
-            adb shell am start -n com.severeclaw.mp3player/.MainActivity --es test_folder "file:///storage/emulated/0/Android/data/com.severeclaw.mp3player/files/Music"
-            sleep 6
+            adb shell am start -n com.severeclaw.mp3player/.MainActivity --ez test_tone true
+            sleep 10
             adb shell input keyevent KEYCODE_MEDIA_PLAY
             sleep 5
             adb exec-out screencap -p > shot3.png
-            adb shell dumpsys media_session | grep -E "state=PlaybackState|package=com.severeclaw" | head -5
+            adb shell dumpsys media_session | grep -A12 "package=com.severeclaw" | grep -E "package=|state=PlaybackState" | head -4
             adb shell cmd statusbar expand-notifications; sleep 2
             adb exec-out screencap -p > shot4.png
             adb logcat -d | grep -E "AndroidRuntime|FATAL|mp3player" | tail -40 || true

@@ -87,17 +87,34 @@ class MainActivity : ComponentActivity() {
         shuffle = prefs.shuffle
         repeat = prefs.repeat
         lyricsOn = prefs.lyricsOn
-        intent?.getStringExtra("test_folder")?.let { tf ->
-            // Проверка на эмуляторе: папка внутри собственного хранилища приложения
-            val own = getExternalFilesDir(null)?.absolutePath
-            if (own != null && tf.startsWith("file://$own")) {
-                folders = listOf(Folder(tf, "Тест"))
-                prefs.folders = folders
-                folderUri = tf
-                prefs.currentFolder = tf
-            }
+        if (intent?.getBooleanExtra("test_tone", false) == true) {
+            // Проверка на эмуляторе: создать тестовый трек с текстом в своей папке и открыть её
+            val dir = java.io.File(filesDir, "test-music").apply { mkdirs() }
+            writeTestTone(java.io.File(dir, "01 - Тест - Синус.wav"))
+            java.io.File(dir, "01 - Тест - Синус.lrc").writeText(
+                "[00:00.50]Первая строчка песни\n[00:03.00]Вторая строчка, которая подлиннее остальных\n[00:30.00]Третья\n")
+            val uri = Uri.fromFile(dir).toString()
+            folders = listOf(Folder(uri, "Тест"))
+            prefs.folders = folders
+            folderUri = uri
+            prefs.currentFolder = uri
         }
         setContent { App() }
+    }
+
+    private fun writeTestTone(f: java.io.File) {
+        if (f.exists()) return
+        val sr = 44100
+        val n = sr * 40
+        val data = java.nio.ByteBuffer.allocate(44 + n * 4).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+        data.put("RIFF".toByteArray()).putInt(36 + n * 4).put("WAVEfmt ".toByteArray()).putInt(16)
+            .putShort(1).putShort(2).putInt(sr).putInt(sr * 4).putShort(4).putShort(16)
+            .put("data".toByteArray()).putInt(n * 4)
+        for (i in 0 until n) {
+            val v = (6000 * kotlin.math.sin(2 * Math.PI * 440 * i / sr)).toInt().toShort()
+            data.putShort(v).putShort(v)
+        }
+        f.writeBytes(data.array())
     }
 
     override fun onStart() {
