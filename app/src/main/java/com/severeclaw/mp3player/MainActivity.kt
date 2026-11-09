@@ -29,6 +29,8 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -111,6 +113,14 @@ class MainActivity : ComponentActivity() {
     private var detail by mutableStateOf<Detail?>(null)
     private var testAutoplay = false
 
+    // обновления
+    private var build = 0
+    private var update by mutableStateOf<Updater.Release?>(null)
+    private var updProgress by mutableStateOf<Float?>(null)
+    private var updMsg by mutableStateOf("")
+    private var news by mutableStateOf<List<Pair<Int, String>>>(emptyList())
+    private var autoUpdate by mutableStateOf(true)
+
     private val permission = if (Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_AUDIO
     else Manifest.permission.READ_EXTERNAL_STORAGE
 
@@ -132,6 +142,12 @@ class MainActivity : ComponentActivity() {
             lifecycleScope.launch(Dispatchers.IO) { makeTestTrack() }
         }
         if (savedInstanceState == null) sounds.powerOn()         // звук включения, как на ПК
+        build = Updater.currentBuild(this)
+        autoUpdate = prefs.autoUpdate
+        if (savedInstanceState == null) {
+            checkWhatsNew()
+            if (autoUpdate && System.currentTimeMillis() - prefs.lastCheck > 6 * 3600_000L) checkUpdate(manual = false)
+        }
         setContent { App() }
     }
 
@@ -267,6 +283,108 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    // ---------------------------------------------------------------- обновления
+    private fun checkWhatsNew() {
+        val last = prefs.lastSeenBuild
+        prefs.lastSeenBuild = build
+        if (last in 1 until build) {
+            lifecycleScope.launch {
+                news = withContext(Dispatchers.IO) { runCatching { Updater.notesSince(last, build) }.getOrDefault(emptyList()) }
+            }
+        }
+    }
+
+    private fun checkUpdate(manual: Boolean) {
+        lifecycleScope.launch {
+            val r = withContext(Dispatchers.IO) { runCatching { Updater.latest() } }
+            prefs.lastCheck = System.currentTimeMillis()
+            val rel = r.getOrNull()
+            when {
+                rel != null && rel.build > build -> { update = rel; updMsg = ""; updProgress = null }
+                manual && r.isFailure -> showToast("Не удалось проверить: ${r.exceptionOrNull()?.message}")
+                manual -> showToast("У тебя последняя сборка ($build)")
+            }
+        }
+    }
+
+    private fun showToast(t: String) = android.widget.Toast.makeText(this, t, android.widget.Toast.LENGTH_LONG).show()
+
+    private fun startUpdate() {
+        val rel = update ?: return
+        if (Build.VERSION.SDK_INT >= 26 && !packageManager.canRequestPackageInstalls()) {
+            updMsg = "Разреши этому приложению устанавливать обновления (переключатель на открывшемся экране) " +
+                "и нажми «Обновить» ещё раз."
+            startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName")))
+            return
+        }
+        updProgress = 0f
+        updMsg = ""
+        lifecycleScope.launch {
+            val res = withContext(Dispatchers.IO) {
+                runCatching {
+                    val apk = Updater.download(this@MainActivity, rel) { f -> runOnUiThread { updProgress = f } }
+                    Updater.install(this@MainActivity, apk)
+                }
+            }
+            if (res.isFailure) {
+                updProgress = null
+                updMsg = "Не вышло: ${res.exceptionOrNull()?.message}"
+            } else {
+                updMsg = "Устанавливаю… подтверди, если Android спросит."
+            }
+        }
+    }
+
+    @Composable
+    fun UpdateDialog(theme: LcdTheme) {
+        val rel = update ?: return
+        AlertDialog(
+            onDismissRequest = { if (updProgress == null) update = null },
+            containerColor = PANEL,
+            title = { Text("Вышла сборка ${rel.build}", color = TEXT) },
+            text = {
+                Column {
+                    Text("У тебя сборка $build. Что нового:", color = DIM, fontSize = 13.sp)
+                    Text(rel.notes.ifBlank { "• Мелкие исправления" }, color = TEXT, fontSize = 14.sp,
+                        modifier = Modifier.padding(top = 6.dp))
+                    updProgress?.let { f ->
+                        Spacer(Modifier.height(12.dp))
+                        LinearProgressIndicator(progress = { f }, color = Color(theme.lit), trackColor = PANEL2,
+                            modifier = Modifier.fillMaxWidth())
+                        Text("Скачиваю… ${(f * 100).toInt()}%", color = DIM, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+                    }
+                    if (updMsg.isNotEmpty()) Text(updMsg, color = TEXT, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { startUpdate() }, enabled = updProgress == null || updMsg.startsWith("Не вышло")) {
+                    Text("Обновить")
+                }
+            },
+            dismissButton = { TextButton(onClick = { update = null }) { Text("Позже") } },
+        )
+    }
+
+    @Composable
+    fun NewsDialog() {
+        if (news.isEmpty()) return
+        AlertDialog(
+            onDismissRequest = { news = emptyList() },
+            containerColor = PANEL,
+            title = { Text("Обновлено до сборки $build", color = TEXT) },
+            text = {
+                Column(Modifier.heightIn(max = 400.dp).verticalScroll(rememberScrollState())) {
+                    news.forEach { (b, t) ->
+                        Text("Сборка $b", color = DIM, fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(top = 8.dp))
+                        Text(t.ifBlank { "• Мелкие исправления" }, color = TEXT, fontSize = 14.sp)
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { news = emptyList() }) { Text("Понятно") } },
+        )
+    }
+
     private fun showFlash(text: String, ms: Long = 1800) {
         flash = text
         flashUntil = System.currentTimeMillis() + ms
@@ -388,6 +506,8 @@ class MainActivity : ComponentActivity() {
             }
         }
         if (showSettings) SettingsDialog(theme, onLyricsFolder = { pickLyrics.launch(null) }) { showSettings = false }
+        UpdateDialog(theme)
+        NewsDialog()
     }
 
     private fun goTab(i: Int) {
@@ -805,6 +925,14 @@ class MainActivity : ComponentActivity() {
                         Text(if (prefs.lyricsTree == null) "📁 Выбрать папку с текстами" else "📁 Выбрать другую папку")
                     }
                     TextButton(onClick = { reload(); showFlash("ИЩУ МУЗЫКУ…") }) { Text("⟳ Найти музыку заново") }
+                    Spacer(Modifier.height(8.dp))
+                    Text("Обновления · сборка $build", color = DIM, fontSize = 12.sp)
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()
+                        .clickable { autoUpdate = !autoUpdate; prefs.autoUpdate = autoUpdate }.padding(vertical = 4.dp)) {
+                        Switch(checked = autoUpdate, onCheckedChange = { autoUpdate = it; prefs.autoUpdate = it })
+                        Text("  Проверять сами (раз в 6 часов)", color = TEXT, fontSize = 14.sp)
+                    }
+                    TextButton(onClick = { checkUpdate(manual = true) }) { Text("⬆ Проверить сейчас") }
                 }
             },
             confirmButton = { TextButton(onClick = onClose) { Text("Готово") } },

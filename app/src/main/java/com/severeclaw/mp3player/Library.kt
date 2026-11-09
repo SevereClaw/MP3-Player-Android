@@ -52,6 +52,18 @@ class Prefs(ctx: Context) {
         get() = p.getInt("tab", 0)
         set(v) = p.edit().putInt("tab", v).apply()
 
+    var autoUpdate: Boolean
+        get() = p.getBoolean("auto_update", true)
+        set(v) = p.edit().putBoolean("auto_update", v).apply()
+
+    var lastCheck: Long
+        get() = p.getLong("last_check", 0)
+        set(v) = p.edit().putLong("last_check", v).apply()
+
+    var lastSeenBuild: Int
+        get() = p.getInt("last_seen_build", 0)
+        set(v) = p.edit().putInt("last_seen_build", v).apply()
+
     /** Что играло: список (id через запятую), номер и позиция — чтобы продолжить после перезапуска. */
     fun saveQueue(ids: List<Long>, index: Int, pos: Long) {
         p.edit().putString("queue", ids.joinToString(",")).putInt("queue_index", index).putLong("queue_pos", pos).apply()
