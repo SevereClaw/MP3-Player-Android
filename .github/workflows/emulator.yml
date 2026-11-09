@@ -40,5 +40,17 @@ jobs:
             adb shell am start -n com.severeclaw.mp3player/.MainActivity; sleep 3
             adb exec-out screencap -p > shot2.png
             adb logcat -d | grep -E "AndroidRuntime|FATAL|mp3player" | tail -40 || true
-            echo "SHOT shot1.png $(base64 -w0 shot1.png)"
-            echo "SHOT shot2.png $(base64 -w0 shot2.png)"
+      - name: Print screenshots
+        run: |
+          pip install --quiet pillow
+          python3 - <<'PY'
+          import base64, io
+          from PIL import Image
+          for name in ("shot1.png", "shot2.png"):
+              im = Image.open(name).convert("RGB")
+              im = im.resize((im.width // 2, im.height // 2))
+              buf = io.BytesIO(); im.save(buf, "JPEG", quality=80)
+              b = base64.b64encode(buf.getvalue()).decode()
+              for i in range(0, len(b), 20000):
+                  print("SHOTPART", name, i // 20000, b[i:i + 20000])
+          PY
