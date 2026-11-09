@@ -87,6 +87,16 @@ class MainActivity : ComponentActivity() {
         shuffle = prefs.shuffle
         repeat = prefs.repeat
         lyricsOn = prefs.lyricsOn
+        intent?.getStringExtra("test_folder")?.let { tf ->
+            // Проверка на эмуляторе: папка внутри собственного хранилища приложения
+            val own = getExternalFilesDir(null)?.absolutePath
+            if (own != null && tf.startsWith("file://$own")) {
+                folders = listOf(Folder(tf, "Тест"))
+                prefs.folders = folders
+                folderUri = tf
+                prefs.currentFolder = tf
+            }
+        }
         setContent { App() }
     }
 
@@ -325,7 +335,10 @@ class MainActivity : ComponentActivity() {
                         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(16.dp)) {
                             Text("Выбери папку с музыкой на телефоне", color = TEXT, fontSize = 15.sp)
                             Spacer(Modifier.height(12.dp))
-                            Button(onClick = { pick.launch(null) }) { Text("📁 Выбрать папку") }
+                            Button(onClick = { pick.launch(null) },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(theme.lit), contentColor = Color(theme.ink))) {
+                                Text("📁 Выбрать папку", fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
                 } else {
@@ -356,7 +369,7 @@ class MainActivity : ComponentActivity() {
         val n = scan?.tracks?.size ?: 0
         val i = (scan?.tracks?.indexOfFirst { it.uri == currentId } ?: -1) + 1
         val ext = t?.name?.substringAfterLast('.', "")?.uppercase()?.take(4) ?: ""
-        val tag = (if (playing) "▶ " else "⏸ ") + (if (n > 0) "%02d/%02d ".format(i, n) else "") + ext +
+        val tag = (if (playing) "> " else "|| ") + (if (n > 0) "%02d/%02d ".format(i, n) else "") + ext +
             (if (shuffle) " RND" else "") + (if (repeat == 1) " RPT1" else "")
         var line: String? = null
         var fill = 0f

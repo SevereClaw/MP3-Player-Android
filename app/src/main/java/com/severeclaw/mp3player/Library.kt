@@ -39,6 +39,7 @@ private fun naturalKey(s: String): String =
 object Library {
     /** Обойти папку (выбранную через системный проводник) со всеми подпапками. */
     fun scan(ctx: Context, treeUri: Uri): ScanResult {
+        if (treeUri.scheme == "file") return scanFiles(java.io.File(treeUri.path ?: "/"))
         val tracks = ArrayList<Track>()
         val lrcs = HashMap<String, String>()
         val rootId = DocumentsContract.getTreeDocumentId(treeUri)
@@ -70,6 +71,21 @@ object Library {
             } catch (_: Exception) {
                 // папку удалили или доступ отозван — пропустить
             }
+        }
+        tracks.sortBy { naturalKey(it.relPath) }
+        return ScanResult(tracks, lrcs)
+    }
+
+    /** Обычная папка на диске (собственное хранилище приложения). */
+    private fun scanFiles(root: java.io.File): ScanResult {
+        val tracks = ArrayList<Track>()
+        val lrcs = HashMap<String, String>()
+        root.walkTopDown().filter { it.isFile }.forEach { f ->
+            val ext = f.extension.lowercase()
+            val dir = f.parentFile?.absolutePath ?: ""
+            val rel = f.absolutePath.removePrefix(root.absolutePath)
+            if (ext in AUDIO_EXT) tracks.add(Track(Uri.fromFile(f).toString(), f.name, dir, rel))
+            else if (ext == "lrc") lrcs[dir + "/" + f.nameWithoutExtension.lowercase()] = Uri.fromFile(f).toString()
         }
         tracks.sortBy { naturalKey(it.relPath) }
         return ScanResult(tracks, lrcs)
