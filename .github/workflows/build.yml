@@ -1,0 +1,56 @@
+name: Build APK
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["**.md"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.11.1"
+
+      - name: Build signed APK
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: gradle --no-daemon assembleRelease
+
+      - name: Rename
+        run: cp app/build/outputs/apk/release/app-release.apk MP3Player.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MP3Player-apk
+          path: MP3Player.apk
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="build-${{ github.run_number }}"
+          prev=$(gh release view --json tagName -q .tagName 2>/dev/null || true)
+          if [ -n "$prev" ]; then log=$(git log "$prev..HEAD" --no-merges --pretty=format:%s); else log=$(git log -1 --pretty=format:%s); fi
+          items=$(echo "$log" | grep -v -E '^(Тест|тест|Test|test|CI|ci|Merge|WIP)' | sed 's/^/- /' | awk '!seen[$0]++')
+          [ -z "$items" ] && items="- Мелкие исправления"
+          printf '%s\n\nСкачай MP3Player.apk на телефон и открой — Android предложит установить (разреши установку из этого источника).\n' "$items" > notes.md
+          gh release create "$tag" MP3Player.apk --title "MP3 Плеер для Android — сборка ${{ github.run_number }}" --notes-file notes.md --latest
