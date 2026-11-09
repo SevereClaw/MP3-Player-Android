@@ -357,7 +357,7 @@ class MainActivity : ComponentActivity() {
             }
         }
         BackHandler(enabled = detail != null || tab != 0) {
-            if (detail != null) detail = null else setTab(0)
+            if (detail != null) detail = null else goTab(0)
         }
 
         Column(Modifier.fillMaxSize().background(BG).systemBarsPadding()) {
@@ -377,7 +377,7 @@ class MainActivity : ComponentActivity() {
                 TABS.forEachIndexed { i, (name, glyph) ->
                     NavigationBarItem(
                         selected = tab == i,
-                        onClick = { setTab(i); detail = null },
+                        onClick = { goTab(i); detail = null },
                         icon = { Text(glyph, fontSize = 18.sp, color = if (tab == i) Color(theme.ink) else TEXT) },
                         label = { Text(name, fontSize = 10.sp, maxLines = 1) },
                         colors = NavigationBarItemDefaults.colors(
@@ -390,7 +390,7 @@ class MainActivity : ComponentActivity() {
         if (showSettings) SettingsDialog(theme, onLyricsFolder = { pickLyrics.launch(null) }) { showSettings = false }
     }
 
-    private fun setTab(i: Int) {
+    private fun goTab(i: Int) {
         tab = i
         prefs.tab = i
     }
@@ -548,10 +548,10 @@ class MainActivity : ComponentActivity() {
                     "next" -> press { controller?.seekToNext() }
                     "play" -> press { togglePlay() }
                     "shuffle" -> press { toggleShuffle() }
-                    "menu" -> press { setTab(1) }
+                    "menu" -> press { goTab(1) }
                     else -> when {
                         skin.screen.contains(x, y) -> press { togglePlay() }
-                        skin.folderZone?.contains(x, y) == true -> press { setTab(4) }
+                        skin.folderZone?.contains(x, y) == true -> press { goTab(4) }
                     }
                 }
             })
@@ -574,7 +574,7 @@ class MainActivity : ComponentActivity() {
     @Composable
     fun MiniPlayer(pos: Long, lit: Color) {
         val s = current() ?: return
-        Column(Modifier.fillMaxWidth().background(PANEL2).clickable { setTab(0) }) {
+        Column(Modifier.fillMaxWidth().background(PANEL2).clickable { goTab(0) }) {
             Box(Modifier.fillMaxWidth().height(2.dp).background(PANEL)) {
                 Box(Modifier.fillMaxHeight().fillMaxWidth(if (duration > 0) (pos.toFloat() / duration).coerceIn(0f, 1f) else 0f)
                     .background(lit))
