@@ -154,6 +154,16 @@ class MainActivity : ComponentActivity() {
             loadLyrics()
             saveState()
         }
+        // Нет тегов — название из имени файла (для уведомления и экрана блокировки).
+        val item = p.currentMediaItem
+        if (item != null && p.playbackState == Player.STATE_READY && p.mediaMetadata.title.isNullOrBlank()
+            && item.mediaMetadata.title.isNullOrBlank()) {
+            scan?.tracks?.firstOrNull { it.uri == item.mediaId }?.let { t ->
+                val meta = MediaMetadata.Builder().setTitle(t.fileTitle)
+                    .setArtist(t.fileArtist.ifEmpty { null }).build()
+                p.replaceMediaItem(p.currentMediaItemIndex, item.buildUpon().setMediaMetadata(meta).build())
+            }
+        }
         tagTitle = p.mediaMetadata.title?.toString()?.takeIf { it.isNotBlank() }
         tagArtist = (p.mediaMetadata.artist ?: p.mediaMetadata.albumArtist)?.toString()?.takeIf { it.isNotBlank() }
         duration = p.duration.takeIf { it > 0 } ?: 0L
