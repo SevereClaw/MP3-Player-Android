@@ -318,27 +318,30 @@ class MainActivity : ComponentActivity() {
                 Chip("🎨") { showSkins = true }
             }
 
-            if (folders.isEmpty()) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Выбери папку с музыкой на телефоне", color = TEXT, fontSize = 16.sp)
-                        Spacer(Modifier.height(12.dp))
-                        Button(onClick = { pick.launch(null) }) { Text("📁 Выбрать папку") }
-                    }
-                }
-            } else {
-                val lcd = lcdState(pos, clock)
-                if (skin.vertical) {
-                    Row(Modifier.fillMaxSize()) {
-                        SkinView(skin, theme, lcd, Modifier.fillMaxHeight().aspectRatio(skin.w / skin.h, matchHeightConstraintsFirst = true)
-                            .padding(4.dp)) { showFolders = true }
-                        TrackList(theme, Modifier.weight(1f).fillMaxHeight())
+            val lcd = lcdState(pos, clock)
+            val list: @Composable (Modifier) -> Unit = { m ->
+                if (folders.isEmpty()) {
+                    Box(m, contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(16.dp)) {
+                            Text("Выбери папку с музыкой на телефоне", color = TEXT, fontSize = 15.sp)
+                            Spacer(Modifier.height(12.dp))
+                            Button(onClick = { pick.launch(null) }) { Text("📁 Выбрать папку") }
+                        }
                     }
                 } else {
-                    Column(Modifier.fillMaxSize()) {
-                        SkinView(skin, theme, lcd, Modifier.fillMaxWidth().aspectRatio(skin.w / skin.h).padding(4.dp)) { showFolders = true }
-                        TrackList(theme, Modifier.weight(1f).fillMaxWidth())
-                    }
+                    TrackList(theme, m)
+                }
+            }
+            if (skin.vertical) {
+                Row(Modifier.fillMaxSize()) {
+                    SkinView(skin, theme, lcd, Modifier.fillMaxHeight().aspectRatio(skin.w / skin.h, matchHeightConstraintsFirst = true)
+                        .padding(4.dp)) { showFolders = true }
+                    list(Modifier.weight(1f).fillMaxHeight())
+                }
+            } else {
+                Column(Modifier.fillMaxSize()) {
+                    SkinView(skin, theme, lcd, Modifier.fillMaxWidth().aspectRatio(skin.w / skin.h).padding(4.dp)) { showFolders = true }
+                    list(Modifier.weight(1f).fillMaxWidth())
                 }
             }
         }
@@ -369,7 +372,7 @@ class MainActivity : ComponentActivity() {
         }
         return LcdState(
             playing = playing, tag = tag,
-            title = tagTitle ?: t?.fileTitle ?: (if (c?.mediaItemCount == 0) "НЕТ МУЗЫКИ" else "…"),
+            title = tagTitle ?: t?.fileTitle ?: (if (folders.isEmpty()) "ВЫБЕРИ ПАПКУ" else if (c?.mediaItemCount == 0) "НЕТ МУЗЫКИ" else "…"),
             artist = tagArtist ?: t?.fileArtist ?: "",
             posMs = pos, durMs = duration, lyric = line, lyricFill = fill,
             flash = flash ?: if (scanning) "ИЩУ МУЗЫКУ…" else null, timeSec = clock,
