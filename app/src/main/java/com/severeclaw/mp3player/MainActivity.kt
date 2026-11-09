@@ -70,7 +70,7 @@ private val PANEL2 = Color(0xFF1E2744)
 private val TEXT = Color(0xFFE6ECEA)
 private val DIM = Color(0xFF8A97A8)
 
-private val TABS = listOf("Плеер" to "▶", "Треки" to "♪", "Альбомы" to "◉", "Исполнители" to "☺", "Папки" to "▤")
+private val TABS = listOf("Плеер" to "▶", "Треки" to "♪", "Альбомы" to "◉", "Артисты" to "♫", "Папки" to "▤")
 
 /** Открытый альбом / исполнитель / папка. */
 data class Detail(val kind: Int, val key: String, val title: String)
