@@ -56,7 +56,7 @@ class PlayerWidget : AppWidgetProvider() {
         const val ACT_NEXT = ACT + "next"
         const val ACT_SHUFFLE = ACT + "shuffle"
         private const val ROWS = 6
-        private const val COLS = 12
+        private const val COLS = 24
 
         fun openIntent(ctx: Context, play: Boolean) = Intent(ctx, MainActivity::class.java)
             .putExtra("widget_play", play)
@@ -233,6 +233,17 @@ object WidgetRenderer {
         val c = Canvas(bmp)
         c.concat(m)
         c.drawBitmap(skin.body, 0f, 0f, paint)
+        if (skin.rotation == 90 || skin.rotation == 270) {
+            // круглые кнопки поворачиваем обратно — значки ⏮ ▶ ⏭ стоят ровно, а не набок
+            for ((name, r) in skin.buttons) {
+                if (name == "menu" || kotlin.math.abs(r.width() - r.height()) > r.width() * 0.1f) continue
+                val src = android.graphics.Rect(r.left.toInt(), r.top.toInt(), r.right.toInt(), r.bottom.toInt())
+                c.save()
+                c.rotate(skin.rotation.toFloat(), r.centerX(), r.centerY())
+                c.drawBitmap(skin.body, src, r, paint)
+                c.restore()
+            }
+        }
         val tag = (if (st.playing) "> " else "|| ") +
             (if (st.count > 0) "%02d/%02d ".format(st.index + 1, st.count) else "") + st.ext.take(4) +
             (if (st.shuffle) " RND" else "") + (if (st.repeatOne) " RPT1" else "")

@@ -145,8 +145,8 @@ class MainActivity : ComponentActivity() {
                 val d = WidgetRenderer.render(this@MainActivity, st, w, h, id)
                 java.io.File(dir, "w_${id}_$h.png").outputStream().use { d.bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
                 val grid = (0 until 6).joinToString("|") { r ->
-                    (0 until 12).joinToString("") { c ->
-                        when (d.hit((c + 0.5f) / 12 * w, (r + 0.5f) / 6 * h)) {
+                    (0 until 24).joinToString("") { c ->
+                        when (d.hit((c + 0.5f) / 24 * w, (r + 0.5f) / 6 * h)) {
                             "play" -> "P"; "prev" -> "<"; "next" -> ">"; "shuffle" -> "S"; else -> "."
                         }
                     }
