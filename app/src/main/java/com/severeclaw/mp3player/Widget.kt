@@ -63,6 +63,10 @@ class PlayerWidget : AppWidgetProvider() {
 
         /** Перерисовать все виджеты (вызывать можно из любого потока). */
         fun refresh(ctx: Context) {
+            if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {   // плеер — только из главного потока
+                android.os.Handler(android.os.Looper.getMainLooper()).post { refresh(ctx) }
+                return
+            }
             val mgr = AppWidgetManager.getInstance(ctx)
             val ids = try {
                 mgr.getAppWidgetIds(ComponentName(ctx, PlayerWidget::class.java))

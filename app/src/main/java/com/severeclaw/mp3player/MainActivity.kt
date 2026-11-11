@@ -140,7 +140,7 @@ class MainActivity : ComponentActivity() {
         if (intent?.getBooleanExtra("widget_shot", false) == true) lifecycleScope.launch(Dispatchers.IO) {
             kotlinx.coroutines.delay(12_000)
             val dir = getExternalFilesDir(null) ?: return@launch
-            val st = WidgetData.current(this@MainActivity)
+            val st = withContext(Dispatchers.Main) { WidgetData.current(this@MainActivity) }
             for ((id, _) in SKINS) for ((w, h) in listOf(1000 to 230, 1000 to 480)) {
                 val d = WidgetRenderer.render(this@MainActivity, st, w, h, id)
                 java.io.File(dir, "w_${id}_$h.png").outputStream().use { d.bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
