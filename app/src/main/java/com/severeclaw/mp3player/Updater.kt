@@ -32,7 +32,7 @@ object Updater {
 
     private fun get(url: String): String {
         val c = URL(url).openConnection() as HttpURLConnection
-        c.setRequestProperty("Accept", "application/vnd.github+json")
+        if (url.startsWith(API)) c.setRequestProperty("Accept", "application/vnd.github+json")
         c.setRequestProperty("User-Agent", "MP3Player-Android")
         c.connectTimeout = 10_000
         c.readTimeout = 15_000
