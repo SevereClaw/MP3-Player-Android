@@ -29,6 +29,14 @@ data class Song(
     val stem: String get() = fileName.substringBeforeLast('.')
 }
 
+/** Элемент очереди плеера (одинаковый у приложения и у фонового плеера/виджета). */
+fun Song.toMediaItem(): androidx.media3.common.MediaItem =
+    androidx.media3.common.MediaItem.Builder().setMediaId(uri).setUri(uri).setMediaMetadata(
+        androidx.media3.common.MediaMetadata.Builder().setTitle(title).setArtist(artist.ifEmpty { null })
+            .setAlbumTitle(album.ifEmpty { null })
+            .setExtras(android.os.Bundle().apply { putString("ext", ext) }).build(),
+    ).build()
+
 private val MUSIC_EXT = setOf("mp3", "flac", "wav", "m4a", "aac", "ogg", "oga", "opus", "wma", "alac", "aiff", "aif")
 
 object MusicStore {

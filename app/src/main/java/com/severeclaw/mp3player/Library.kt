@@ -64,6 +64,20 @@ class Prefs(ctx: Context) {
         get() = p.getInt("last_seen_build", 0)
         set(v) = p.edit().putInt("last_seen_build", v).apply()
 
+    /** Последнее, что показывал виджет, — чтобы показать то же, когда плеер закрыт. */
+    fun saveWidget(d: WidgetData) {
+        p.edit().putString("w_title", d.title).putString("w_artist", d.artist).putString("w_ext", d.ext)
+            .putInt("w_index", d.index).putInt("w_count", d.count).putLong("w_pos", d.posMs)
+            .putLong("w_dur", d.durMs).apply()
+    }
+
+    fun loadWidget() = WidgetData(
+        title = p.getString("w_title", "") ?: "", artist = p.getString("w_artist", "") ?: "",
+        ext = p.getString("w_ext", "") ?: "", playing = false,
+        index = p.getInt("w_index", 0), count = p.getInt("w_count", 0), shuffle = shuffle,
+        repeatOne = repeat == 1, posMs = p.getLong("w_pos", 0), durMs = p.getLong("w_dur", 0),
+    )
+
     /** Что играло: список (id через запятую), номер и позиция — чтобы продолжить после перезапуска. */
     fun saveQueue(ids: List<Long>, index: Int, pos: Long) {
         p.edit().putString("queue", ids.joinToString(",")).putInt("queue_index", index).putLong("queue_pos", pos).apply()

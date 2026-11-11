@@ -137,11 +137,30 @@ class MainActivity : ComponentActivity() {
         sounds.volume = sfx
         tab = prefs.tab
         hasPerm = ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
+        if (intent?.getBooleanExtra("widget_shot", false) == true) lifecycleScope.launch(Dispatchers.IO) {
+            kotlinx.coroutines.delay(12_000)
+            val dir = getExternalFilesDir(null) ?: return@launch
+            val st = WidgetData.current(this@MainActivity)
+            for ((id, _) in SKINS) for ((w, h) in listOf(1000 to 230, 1000 to 480)) {
+                val d = WidgetRenderer.render(this@MainActivity, st, w, h, id)
+                java.io.File(dir, "w_${id}_$h.png").outputStream().use { d.bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+                val grid = (0 until 6).joinToString("|") { r ->
+                    (0 until 12).joinToString("") { c ->
+                        when (d.hit((c + 0.5f) / 12 * w, (r + 0.5f) / 6 * h)) {
+                            "play" -> "P"; "prev" -> "<"; "next" -> ">"; "shuffle" -> "S"; else -> "."
+                        }
+                    }
+                }
+                android.util.Log.i("WIDGETTEST", "$id $w x $h $grid")
+            }
+            android.util.Log.i("WIDGETTEST", "done")
+        }
         if (intent?.getBooleanExtra("test_tone", false) == true) {
             testAutoplay = true
             lifecycleScope.launch(Dispatchers.IO) { makeTestTrack() }
         }
-        if (savedInstanceState == null) sounds.powerOn()         // звук включения, как на ПК
+        wantWidgetPlay = savedInstanceState == null && intent?.getBooleanExtra("widget_play", false) == true
+        if (savedInstanceState == null && !wantWidgetPlay) sounds.powerOn()         // звук включения, как на ПК
         build = Updater.currentBuild(this)
         autoUpdate = prefs.autoUpdate
         if (savedInstanceState == null) {
@@ -163,6 +182,7 @@ class MainActivity : ComponentActivity() {
             c.addListener(listener)
             sync(c)
             restoreQueueIfEmpty()
+            widgetPlay()
         }, ContextCompat.getMainExecutor(this))
     }
 
@@ -216,11 +236,34 @@ class MainActivity : ComponentActivity() {
             loading = false
             loadLyrics()
             restoreQueueIfEmpty()
+            widgetPlay()
             if (testAutoplay && list.isNotEmpty()) {
                 testAutoplay = false
                 play(list, 0)
             }
         }
+    }
+
+    /** Нажали ▶ на виджете, когда плеер был закрыт: включить и спрятаться обратно. */
+    private var wantWidgetPlay = false
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.getBooleanExtra("widget_play", false)) {
+            wantWidgetPlay = true
+            widgetPlay()
+        }
+    }
+
+    private fun widgetPlay() {
+        if (!wantWidgetPlay) return
+        val c = controller ?: return
+        if (c.mediaItemCount == 0) return
+        wantWidgetPlay = false
+        c.prepare()
+        c.play()
+        moveTaskToBack(true)
     }
 
     private fun restoreQueueIfEmpty() {
@@ -233,10 +276,7 @@ class MainActivity : ComponentActivity() {
         setQueue(list, i, if (list.size == ids.size) pos else 0L, autoplay = false)
     }
 
-    private fun item(s: Song) = MediaItem.Builder().setMediaId(s.uri).setUri(s.uri).setMediaMetadata(
-        MediaMetadata.Builder().setTitle(s.title).setArtist(s.artist.ifEmpty { null })
-            .setAlbumTitle(s.album.ifEmpty { null }).build(),
-    ).build()
+    private fun item(s: Song) = s.toMediaItem()
 
     private fun setQueue(list: List<Song>, index: Int, pos: Long, autoplay: Boolean) {
         val c = controller ?: return
@@ -885,6 +925,7 @@ class MainActivity : ComponentActivity() {
                                 prefs.skin = id
                                 themeName = ""
                                 prefs.theme = ""
+                                PlayerWidget.refresh(this@MainActivity)
                             }.padding(vertical = 6.dp))
                     }
                     Spacer(Modifier.height(8.dp))
@@ -892,7 +933,7 @@ class MainActivity : ComponentActivity() {
                     Row(Modifier.padding(top = 6.dp)) {
                         THEMES.forEach { t ->
                             Box(Modifier.padding(end = 8.dp).size(32.dp).clip(RoundedCornerShape(8.dp)).background(Color(t.lit))
-                                .clickable { themeName = t.name; prefs.theme = t.name },
+                                .clickable { themeName = t.name; prefs.theme = t.name; PlayerWidget.refresh(this@MainActivity) },
                                 contentAlignment = Alignment.Center) {
                                 if (t.name == theme.name) Text("✓", color = Color(t.ink), fontWeight = FontWeight.Bold)
                             }
