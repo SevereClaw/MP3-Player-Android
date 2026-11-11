@@ -37,6 +37,9 @@ object Updater {
         c.connectTimeout = 10_000
         c.readTimeout = 15_000
         try {
+            if (c.responseCode == 403 || c.responseCode == 429) {
+                throw java.io.IOException("GitHub временно ограничил проверки (часто бывает через VPN), попробуй позже")
+            }
             if (c.responseCode != 200) throw java.io.IOException("GitHub ответил ${c.responseCode}")
             return c.inputStream.bufferedReader().readText()
         } finally {
@@ -56,10 +59,60 @@ object Updater {
         return null
     }
 
-    fun latest(): Release? = parse(JSONObject(get("$API/latest")))
+    private const val SITE = "https://github.com/SevereClaw/MP3-Player-Android"
+
+    // api.github.com без входа — 60 запросов в час на IP, а у мобильного оператора или VPN
+    // один IP на тысячи людей («rate limit exceeded»). Поэтому номер сборки — из переадресации
+    // github.com/…/releases/latest, описания — из ленты releases.atom, файл — по прямой ссылке.
+    private fun latestTag(): String? {
+        val c = URL("$SITE/releases/latest").openConnection() as HttpURLConnection
+        c.instanceFollowRedirects = false
+        c.requestMethod = "HEAD"
+        c.setRequestProperty("User-Agent", "MP3Player-Android")
+        c.connectTimeout = 10_000
+        c.readTimeout = 15_000
+        try {
+            c.responseCode
+            val loc = c.getHeaderField("Location") ?: return null
+            return Regex("/releases/tag/([^/?#]+)").find(loc)?.groupValues?.get(1)
+        } finally {
+            c.disconnect()
+        }
+    }
+
+    private fun htmlText(h: String): String = android.text.Html.fromHtml(
+        h.replace(Regex("(?i)<li[^>]*>"), "<br>- "), android.text.Html.FROM_HTML_MODE_LEGACY,
+    ).toString()
+
+    /** Релизы из ленты: (номер сборки, текст) — от новых к старым. */
+    private fun feed(): List<Pair<Int, String>> {
+        val xml = get("$SITE/releases.atom")
+        return Regex("<entry>(.*?)</entry>", RegexOption.DOT_MATCHES_ALL).findAll(xml).mapNotNull { e ->
+            val ent = e.groupValues[1]
+            val tag = Regex("/releases/tag/([^\"/?#]+)").find(ent)?.groupValues?.get(1) ?: return@mapNotNull null
+            val b = Regex("(\\d+)\\s*$").find(tag)?.groupValues?.get(1)?.toIntOrNull() ?: return@mapNotNull null
+            val content = Regex("<content[^>]*>(.*?)</content>", RegexOption.DOT_MATCHES_ALL).find(ent)?.groupValues?.get(1) ?: ""
+            b to cleanNotes(htmlText(android.text.Html.fromHtml(content, android.text.Html.FROM_HTML_MODE_LEGACY).toString()))
+        }.toList()
+    }
+
+    fun latest(): Release? {
+        val tag = try { latestTag() } catch (_: Exception) { null }
+        val b = tag?.let { Regex("(\\d+)\\s*$").find(it)?.groupValues?.get(1)?.toIntOrNull() }
+        if (tag != null && b != null) {
+            val notes = try { feed().firstOrNull { it.first == b }?.second ?: "" } catch (_: Exception) { "" }
+            return Release(b, "$SITE/releases/download/$tag/$ASSET", 0, notes)
+        }
+        return parse(JSONObject(get("$API/latest")))           // запасной путь
+    }
 
     /** Описания сборок новее after (до upto включительно) — от новой к старой. */
     fun notesSince(after: Int, upto: Int): List<Pair<Int, String>> {
+        try {
+            val f = feed().filter { it.first in (after + 1)..upto }.sortedByDescending { it.first }
+            if (f.isNotEmpty()) return f.take(10)
+        } catch (_: Exception) {
+        }
         val arr = JSONArray(get("$API?per_page=30"))
         return (0 until arr.length()).mapNotNull { i ->
             val o = arr.getJSONObject(i)
@@ -83,8 +136,9 @@ object Updater {
         c.instanceFollowRedirects = true
         c.connectTimeout = 15_000
         c.readTimeout = 30_000
+        var total = 0L
         try {
-            val total = c.contentLengthLong.takeIf { it > 0 } ?: r.size
+            total = c.contentLengthLong.takeIf { it > 0 } ?: r.size
             c.inputStream.use { inp ->
                 out.outputStream().use { o ->
                     val buf = ByteArray(64 * 1024)
@@ -101,7 +155,8 @@ object Updater {
         } finally {
             c.disconnect()
         }
-        if (r.size > 0 && out.length() != r.size) throw java.io.IOException("скачалось не полностью")
+        val expect = if (r.size > 0) r.size else total
+        if (expect > 0 && out.length() != expect) throw java.io.IOException("скачалось не полностью")
         return out
     }
 
